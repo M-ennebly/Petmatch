@@ -103,6 +103,10 @@ model MerchantSettings {
   eligibilityTags          String[] @default([])
   eligibilityCollectionIds String[] @default([])
 
+  // Store knowledge & custom instructions
+  storeKnowledge     String?  // FAQ, refund policy, shipping info — pasted by merchant
+  customInstructions String?  // e.g. "Always recommend vet consultation for medical questions"
+
   // Widget config
   greetingText   String  @default("Find the perfect product for your pet!")
   widgetPosition String  @default("bottom-right") // bottom-right | bottom-left

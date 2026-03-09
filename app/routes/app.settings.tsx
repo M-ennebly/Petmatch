@@ -38,6 +38,8 @@ interface SettingsData {
     primaryColor: string;
     borderRadius: number;
     avatarUrl: string | null;
+    storeKnowledge: string;
+    customInstructions: string;
 }
 
 
@@ -100,6 +102,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         primaryColor: s.primaryColor,
         borderRadius: s.borderRadius,
         avatarUrl: s.avatarUrl,
+        storeKnowledge: s.storeKnowledge || "",
+        customInstructions: s.customInstructions || "",
     });
 };
 
@@ -211,6 +215,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const borderRadius = parseInt(formData.get("borderRadius") as string, 10) || 16;
     const avatarUrlRaw = (formData.get("avatarUrl") as string || "").trim();
     const avatarUrl = avatarUrlRaw === "" ? null : avatarUrlRaw;
+    const storeKnowledge = (formData.get("storeKnowledge") as string || "").trim() || null;
+    const customInstructions = (formData.get("customInstructions") as string || "").trim() || null;
 
     // Parse arrays
     const eligibilityTags = eligibilityTagsRaw
@@ -269,6 +275,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             primaryColor,
             borderRadius,
             avatarUrl,
+            storeKnowledge,
+            customInstructions,
         },
         create: {
             shopId: shop.id,
@@ -280,6 +288,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             primaryColor,
             borderRadius,
             avatarUrl,
+            storeKnowledge,
+            customInstructions,
         },
     });
 
@@ -305,6 +315,8 @@ export default function Settings() {
     const [primaryColor, setPrimaryColor] = useState(loaderData.primaryColor);
     const [borderRadius, setBorderRadius] = useState(loaderData.borderRadius);
     const [avatarUrl, setAvatarUrl] = useState(loaderData.avatarUrl || "");
+    const [storeKnowledge, setStoreKnowledge] = useState(loaderData.storeKnowledge || "");
+    const [customInstructions, setCustomInstructions] = useState(loaderData.customInstructions || "");
     const [errors, setErrors] = useState<ValidationErrors>({});
 
     const isSaving = fetcher.state !== "idle";
@@ -401,10 +413,12 @@ export default function Settings() {
                 primaryColor,
                 borderRadius: String(borderRadius),
                 avatarUrl: avatarUrl.trim(),
+                storeKnowledge,
+                customInstructions,
             },
             { method: "POST" },
         );
-    }, [eligibilityMode, tags, collectionInput, greetingText, widgetPosition, primaryColor, borderRadius, avatarUrl, fetcher]);
+    }, [eligibilityMode, tags, collectionInput, greetingText, widgetPosition, primaryColor, borderRadius, avatarUrl, storeKnowledge, customInstructions, fetcher]);
 
     // ── Eligibility mode options ────────────────────────────────────────────
     const eligibilityOptions = [
@@ -649,6 +663,36 @@ export default function Settings() {
                                 </BlockStack>
                             </Card>
                         </BlockStack>
+                    </Layout.AnnotatedSection>
+                </Layout>
+
+                {/* ── Card 4: Store Knowledge Base ─────────────────────────── */}
+                <Layout>
+                    <Layout.AnnotatedSection
+                        id="store-knowledge"
+                        title="Store Knowledge Base"
+                        description="Give the AI access to your store policies so it can answer customer questions about returns, shipping, FAQs, etc."
+                    >
+                        <Card>
+                            <BlockStack gap="400">
+                                <TextField
+                                    label="Store Knowledge (FAQ, Policies, Shipping)"
+                                    value={storeKnowledge}
+                                    onChange={setStoreKnowledge}
+                                    multiline={8}
+                                    autoComplete="off"
+                                    helpText="Paste your FAQ, return policy, and shipping info here. The AI will use this to answer customer questions."
+                                />
+                                <TextField
+                                    label="Custom AI Instructions"
+                                    value={customInstructions}
+                                    onChange={setCustomInstructions}
+                                    multiline={3}
+                                    autoComplete="off"
+                                    helpText="Optional: give the AI specific instructions, e.g. 'Always recommend consulting a vet for health questions.'"
+                                />
+                            </BlockStack>
+                        </Card>
                     </Layout.AnnotatedSection>
                 </Layout>
 

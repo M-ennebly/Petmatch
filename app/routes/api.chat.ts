@@ -139,6 +139,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             },
         });
 
+        const aiMode = (process.env.AI_MODE || "stub").toLowerCase();
+        if (aiMode === "stub") {
+            // Return a friendly default without calling any AI
+            return json({
+                success: true,
+                sessionId: session.id,
+                userMessage: {
+                    id: userMsg.id,
+                    role: userMsg.role,
+                    content: userMsg.content,
+                    imageUrl: userMsg.imageUrl,
+                    createdAt: userMsg.createdAt.toISOString(),
+                },
+                botMessage: {
+                    id: "stub",
+                    role: "bot",
+                    content: "Hey! 🐾 I'm Lumi. Tell me about your pet and what you're looking for!",
+                    imageUrl: null,
+                    createdAt: new Date().toISOString(),
+                },
+                recommendations: [],
+                quickReplies: [],
+            }, { headers: corsHeaders });
+        }
+
         // 1b. ONE-BRAIN Pipeline: Intent + Scoring + Reply in one call
         let botReplyContent: string = "";
         let responseSource: string = "";
@@ -174,6 +199,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                     orderBy: { createdAt: "asc" },
                     take: 10
                 });
+                console.log(`[DEBUG:history] messages in history: ${history.length}`, history.map(h => `${h.role}: ${h.content?.substring(0, 30)}`));
 
                 // Pre-filter catalog
                 // Simple keyword match to reduce token size. Grab up to 50 items.
@@ -203,10 +229,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 console.log(`[TRACE:chat] PRE-OPENAI | shop=${shop} | userText="${normalizedContent}" | catalogContextCount=${contextItems.length}`);
                 console.log(`[TRACE:chat] First 3 catalog items:`, contextItems.slice(0, 3).map(p => ({ handle: p.handle, title: p.title })));
 
+                // Load merchant store knowledge & custom instructions
+                const merchantSettings = await db.merchantSettings.findFirst({
+                    where: { shop: { domain: shop } },
+                    select: { storeKnowledge: true, customInstructions: true }
+                });
+
                 const { generateChatResponseOpenAI } = await import("../ai/openaiChat.server");
 
                 const aiResponse = await generateChatResponseOpenAI({
-                    recentMessages: history.map(h => ({ role: h.role, content: h.content || "" })),
+                    recentMessages: history.map(h => ({
+                        role: h.role === "bot" ? "assistant" : "user",
+                        content: h.content || ""
+                    })),
                     catalogContext: contextItems.map(p => ({
                         handle: p.handle,
                         title: p.title,
@@ -215,7 +250,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                         priceMin: p.minPrice,
                         priceMax: p.maxPrice
                     })),
-                    imageUrl: imageUrl || undefined
+                    imageUrl: imageUrl || undefined,
+                    storeKnowledge: merchantSettings?.storeKnowledge ?? undefined,
+                    customInstructions: merchantSettings?.customInstructions ?? undefined,
                 });
 
                 botReplyContent = aiResponse.replyText;
