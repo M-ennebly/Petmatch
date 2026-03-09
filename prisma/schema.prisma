@@ -5,14 +5,13 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
+// ── Shopify session storage ────────────────────────────────────────────────────
 model Session {
   id                  String    @id
   shop                String
@@ -31,4 +30,204 @@ model Session {
   emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+// ── PetMatch AI core models ────────────────────────────────────────────────────
+model PetProfile {
+  id              String         @id @default(cuid())
+  shopDomain      String
+  sessionId       String?
+  species         String // e.g. "dog", "cat"
+  breed           String? // detected or user-confirmed breed
+  breedConfidence Float? // 0.0–1.0 confidence from AI service
+  ageGroup        String? // "puppy", "adult", "senior"
+  weightKg        Float?
+  healthNotes     String?
+  imageUrl        String? // storefront-uploaded photo URL
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  productMatches  ProductMatch[]
+  safetyLogs      SafetyLog[]
+
+  @@index([shopDomain])
+}
+
+model ProductMatch {
+  id               String     @id @default(cuid())
+  petProfileId     String
+  petProfile       PetProfile @relation(fields: [petProfileId], references: [id], onDelete: Cascade)
+  shopifyProductId String
+  shopifyVariantId String?
+  score            Float // relevance score 0.0–1.0
+  reason           String? // human-readable match reason
+  createdAt        DateTime   @default(now())
+
+  @@index([petProfileId])
+  @@index([shopifyProductId])
+}
+
+model SafetyLog {
+  id           String     @id @default(cuid())
+  petProfileId String
+  petProfile   PetProfile @relation(fields: [petProfileId], references: [id], onDelete: Cascade)
+  productId    String
+  flagType     String // e.g. "allergen", "size_hazard", "toxic_ingredient"
+  severity     String // "low", "medium", "high"
+  details      String?
+  resolvedAt   DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@index([petProfileId])
+  @@index([productId])
+}
+
+model Shop {
+  id               String            @id @default(cuid())
+  domain           String            @unique
+  status           String            @default("ACTIVE")
+  uninstalledAt    DateTime?
+  scriptTagId      String?
+  merchantSettings MerchantSettings?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model MerchantSettings {
+  id       String  @id @default(cuid())
+  shopId   String  @unique
+  shop     Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  isActive Boolean @default(false)
+
+  // Product eligibility
+  eligibilityMode          String   @default("ALL_PRODUCTS") // ALL_PRODUCTS | BY_TAG | BY_COLLECTION
+  eligibilityTags          String[] @default([])
+  eligibilityCollectionIds String[] @default([])
+
+  // Widget config
+  greetingText   String  @default("Find the perfect product for your pet!")
+  widgetPosition String  @default("bottom-right") // bottom-right | bottom-left
+  primaryColor   String  @default("#22c55e")
+  borderRadius   Int     @default(16)
+  avatarUrl      String? // URL
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── Synced product catalog ─────────────────────────────────────────────────────
+model Product {
+  id             String   @id @default(cuid())
+  shopDomain     String
+  shopifyId      String // e.g. "gid://shopify/Product/123"
+  title          String
+  handle         String
+  productType    String   @default("")
+  vendor         String   @default("")
+  tags           String[] @default([])
+  featuredImage  String? // URL
+  minPrice       String   @default("0.00")
+  maxPrice       String   @default("0.00")
+  firstVariantId String?
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([shopDomain, shopifyId])
+  @@index([shopDomain])
+  @@index([tags])
+}
+
+model SyncLog {
+  id           String    @id @default(cuid())
+  shopDomain   String
+  status       String // RUNNING | COMPLETED | FAILED
+  productCount Int       @default(0)
+  error        String?
+  startedAt    DateTime  @default(now())
+  completedAt  DateTime?
+
+  @@index([shopDomain])
+}
+
+model ErrorLog {
+  id        String   @id @default(cuid())
+  area      String
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([area])
+}
+
+// ── Storefront Widget Chat ─────────────────────────────────────────────────────
+model ChatSession {
+  id         String        @id @default(cuid())
+  shopDomain String
+  customerId String? // Optional, if logged in
+  browserId  String // UUID generated by widget
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  messages   ChatMessage[]
+
+  @@index([shopDomain, browserId])
+}
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String // "user" | "bot"
+  content   String
+  imageUrl  String?
+  createdAt DateTime    @default(now())
+
+  @@index([sessionId])
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  shopId    String
+  sessionId String
+  eventType String // e.g. "widget_opened", "message_sent"
+  metadata  Json? // Optional JSON payload with additional info
+  createdAt DateTime @default(now())
+
+  // We are not strictly defining relations to Shop or ChatSession here because we might want
+  // to track events even when a ChatSession has not been fully initialized or authenticated yet
+  // but we should index on shopId and sessionId for dashboard queries.
+  @@index([shopId])
+  @@index([sessionId])
+  @@index([eventType])
+}
+
+// ── GDPR Compliance Logs ──────────────────────────────────────────────────────
+model ComplianceLog {
+  id             String   @id @default(cuid())
+  shopDomain     String
+  topic          String   // e.g. "customers/data_request", "customers/redact", "shop/redact"
+  payloadSummary Json?    // sanitised summary of the webhook payload
+  receivedAt     DateTime @default(now())
+
+  @@index([shopDomain])
+  @@index([topic])
+}
+
+// ── Structured Chat Intent ────────────────────────────────────────────────────
+model SessionIntent {
+  id          String   @id @default(uuid())
+  shopDomain  String
+  sessionId   String
+  petType     String   @default("unknown")
+  lifeStage   String   @default("unknown")
+  goal        String   @default("unknown")
+  constraints Json     @default("[]")
+  budget      String   @default("unknown")
+  hasPhoto    Boolean  @default(false)
+  photoType   String   @default("unknown") // pet_photo | product_label | other | unknown
+  confidence  Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shopDomain, sessionId])
+  @@index([shopDomain])
+  @@index([sessionId])
 }

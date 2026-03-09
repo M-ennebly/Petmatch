@@ -69,5 +69,9 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ["@shopify/app-bridge-react", "@shopify/polaris"],
+    exclude: ["@prisma/client"],
+  },
+  ssr: {
+    external: ["@prisma/client", ".prisma/client"],
   },
 }) satisfies UserConfig;
