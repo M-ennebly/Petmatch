@@ -77,7 +77,7 @@ Only include handles that exist in the catalog above.`;
     const messages: any[] = [
         { role: "system", content: systemPrompt },
         ...recentMessages.map(m => ({
-            role: m.role,
+            role: m.role === "user" ? "user" : "assistant",
             content: m.content
         }))
     ];
