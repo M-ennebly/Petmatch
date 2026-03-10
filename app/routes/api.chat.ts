@@ -196,9 +196,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 // Fetch context for the prompt
                 const history = await db.chatMessage.findMany({
                     where: { sessionId: session.id },
-                    orderBy: { createdAt: "asc" },
-                    take: 10
+                    orderBy: { createdAt: "desc" },
+                    take: 10,
                 });
+                history.reverse();
                 console.log(`[DEBUG:history] messages in history: ${history.length}`, history.map(h => `${h.role}: ${h.content?.substring(0, 30)}`));
 
                 // Pre-filter catalog
