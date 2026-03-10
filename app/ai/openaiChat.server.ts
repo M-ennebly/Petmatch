@@ -13,13 +13,6 @@ export type OneBrainResponse = {
     replyText: string;
     recommendedHandles: string[];
     needMoreInfo: boolean;
-    nextQuestion: string | null;
-    _debug: {
-        rawModelOutput: string;
-        modelNeedMoreInfo: boolean;
-        recommendedHandles: string[];
-        nextQuestionLength: number;
-    };
 };
 
 export async function generateChatResponseOpenAI({
@@ -98,7 +91,6 @@ Only include handles that exist in the catalog above.`;
         });
 
         const raw = response.choices[0]?.message?.content || "";
-        console.log(`[TRACE:openaiChat] Raw: ${raw}`);
 
         // Split reply text from the JSON handles block
         const jsonMatch = raw.match(/\{"handles":\s*\[.*?\]\}/s);
@@ -120,13 +112,6 @@ Only include handles that exist in the catalog above.`;
             replyText: replyText || "I'm here to help! Tell me about your pet.",
             recommendedHandles,
             needMoreInfo,
-            nextQuestion: null,
-            _debug: {
-                rawModelOutput: raw,
-                modelNeedMoreInfo: needMoreInfo,
-                recommendedHandles,
-                nextQuestionLength: 0
-            }
         };
 
     } catch (error) {

@@ -235,3 +235,17 @@ model SessionIntent {
   @@index([shopDomain])
   @@index([sessionId])
 }
+
+model Subscription {
+  id               String    @id @default(cuid())
+  shopDomain       String    @unique
+  plan             String    @default("FREE") // FREE | GROWTH | PRO
+  status           String    @default("ACTIVE") // ACTIVE | CANCELLED | FROZEN
+  shopifyChargeId  String?
+  trialEndsAt      DateTime?
+  currentPeriodEnd DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([shopDomain])
+}

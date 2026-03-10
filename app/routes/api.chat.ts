@@ -8,7 +8,7 @@ import {
     rateLimitResponse,
     validateShop,
 } from "../lib/storefront-security.server";
-// ONE-BRAIN: all AI logic is now handled via openaiChat.server.ts (dynamically imported below)
+import { generateChatResponseOpenAI } from "../ai/openaiChat.server";
 
 const MAX_MESSAGE_LENGTH = 2000;
 
@@ -127,8 +127,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             });
         }
 
-        console.log(`[DEBUG:chat] Route: POST /api/chat | shop=${shop} | browserId=${browserId} | dbSessionId=${session.id}`);
-
         // 1. Save User Message
         const userMsg = await db.chatMessage.create({
             data: {
@@ -166,10 +164,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
         // 1b. ONE-BRAIN Pipeline: Intent + Scoring + Reply in one call
         let botReplyContent: string = "";
-        let responseSource: string = "";
         let recommendations: any[] = [];
         let quickReplies: string[] = [];
-        let _debugInfo: any = { responseSource: '', catalogContextCount: 0, recommendedHandles: [], mappedProductsCount: 0, needMoreInfo: false };
 
         // ── Quick reply detection (photo type selection) ──────────────
         const QUICK_REPLY_MAP: Record<string, { followUp: string }> = {
@@ -184,14 +180,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         if (quickReplyMatch) {
             // User selected a quick reply
             botReplyContent = quickReplyMatch.followUp;
-            responseSource = "quick-reply-followup";
         } else if (imageUrl && !content) {
             // Image uploaded without text
             botReplyContent = "Got it! What should I look for in this photo?";
             quickReplies = ["My pet (breed/size)", "A product label (ingredients)", "Something else"];
-            responseSource = "image-upload-quick-reply";
         } else {
-            // ONE-BRAIN Execution Path
             try {
                 // Fetch context for the prompt
                 const history = await db.chatMessage.findMany({
@@ -200,15 +193,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                     take: 10,
                 });
                 history.reverse();
-                console.log(`[DEBUG:history] messages in history: ${history.length}`, history.map(h => `${h.role}: ${h.content?.substring(0, 30)}`));
 
-                // Pre-filter catalog
-                // Simple keyword match to reduce token size. Grab up to 50 items.
                 const allProducts = await db.product.findMany({
                     where: { shopDomain: shop, status: "ACTIVE" }
                 });
 
-                // Basic scoring for context injection
                 const keywords = normalizedContent.split(" ").filter((w: string) => w.length > 2);
                 let scoredContext = allProducts.map(p => {
                     let score = 0;
@@ -227,16 +216,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                     contextItems = allProducts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 30);
                 }
 
-                console.log(`[TRACE:chat] PRE-OPENAI | shop=${shop} | userText="${normalizedContent}" | catalogContextCount=${contextItems.length}`);
-                console.log(`[TRACE:chat] First 3 catalog items:`, contextItems.slice(0, 3).map(p => ({ handle: p.handle, title: p.title })));
-
                 // Load merchant store knowledge & custom instructions
                 const merchantSettings = await db.merchantSettings.findFirst({
                     where: { shop: { domain: shop } },
                     select: { storeKnowledge: true, customInstructions: true }
                 });
-
-                const { generateChatResponseOpenAI } = await import("../ai/openaiChat.server");
 
                 const aiResponse = await generateChatResponseOpenAI({
                     recentMessages: history.map(h => ({
@@ -257,12 +241,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 });
 
                 botReplyContent = aiResponse.replyText;
-                if (aiResponse.needMoreInfo && aiResponse.nextQuestion) {
-                    // Only append if the question isn't already in replyText (dedup guard)
-                    if (!aiResponse.replyText.includes(aiResponse.nextQuestion)) {
-                        botReplyContent += " " + aiResponse.nextQuestion;
-                    }
-                }
 
                 // Map recommended handles back to DB rows to guarantee valid URLs formatting
                 if (!aiResponse.needMoreInfo && aiResponse.recommendedHandles && aiResponse.recommendedHandles.length > 0) {
@@ -276,41 +254,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                         priceMin: p.minPrice,
                         priceMax: p.maxPrice,
                         firstVariantId: p.firstVariantId,
-                        reason: "Recommended by Assistant",
                     }));
                 }
-
-                // TRACE: post-mapping diagnostic
-                console.log(`[TRACE:chat] POST-MAP | recommendedHandles=[${aiResponse.recommendedHandles.join(',')}] | mappedProductsCount=${recommendations.length} | mappedHandles=[${recommendations.map(r => r.handle).join(',')}]`);
-                if (aiResponse.recommendedHandles.length > 0 && recommendations.length === 0) {
-                    console.error(`[TRACE:chat] ⚠️ HANDLE MISMATCH! OpenAI returned handles that don't exist in contextItems. This means the AI hallucinated handles.`);
-                    console.error(`[TRACE:chat] AI handles: ${JSON.stringify(aiResponse.recommendedHandles)}`);
-                    console.error(`[TRACE:chat] Available handles: ${JSON.stringify(contextItems.map(p => p.handle))}`);
-                }
-
-
-                // Populate debug info
-                _debugInfo = {
-                    responseSource: 'one-brain-openai',
-                    catalogContextCount: contextItems.length,
-                    recommendedHandles: aiResponse.recommendedHandles,
-                    mappedProductsCount: recommendations.length,
-                    needMoreInfo: aiResponse.needMoreInfo,
-                };
-
-                responseSource = "one-brain-openai";
 
             } catch (err: any) {
                 console.error("[DEBUG:chat] ONE-BRAIN generation failed, falling back:", err);
                 await db.errorLog.create({ data: { area: "one-brain", message: err.message || "OpenAI error" } });
 
                 botReplyContent = "I'm here to help! What kind of pet are you shopping for?";
-                responseSource = "ai-fail-fallback";
                 recommendations = [];
             }
         }
-
-        console.log(`[DEBUG:chat] Response source: ${responseSource} | recs=${recommendations.length}`);
 
         // Save bot message
         const botMsg = await db.chatMessage.create({
@@ -341,7 +295,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 },
                 recommendations,
                 quickReplies,
-                _debug: _debugInfo,
             },
             { headers: corsHeaders }
         );
