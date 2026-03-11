@@ -1,6 +1,7 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useNavigate, useSubmit, useNavigation } from "@remix-run/react";
-import { Page, Layout, Card, BlockStack, InlineStack, Text, Badge, Select, Grid, Button, Divider, List, Box } from "@shopify/polaris";
+import { Page, Layout, Card, BlockStack, InlineStack, Text, Badge, Button, Divider, List, Box, Grid, Select, Icon } from "@shopify/polaris";
+import { ViewIcon, ChatIcon, SendIcon, CartIcon, TargetIcon, ProductIcon } from '@shopify/polaris-icons';
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { TitleBar } from "@shopify/app-bridge-react";
@@ -149,123 +150,178 @@ export default function Dashboard() {
 
   const isSyncing = navigation.state === "submitting" && navigation.formAction === "/app/catalog";
 
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
   return (
-    <Page
-      title="Dashboard Overview"
-      primaryAction={{ content: "Billing", onAction: () => navigate("/app/billing") }}
-    >
+    <Page title="Performance Hub" primaryAction={{ content: "View Settings", onAction: () => navigate("/app/settings") }}>
       <TitleBar title="Dashboard" />
-      <BlockStack gap="500">
-        {/* Header Controls */}
-        <InlineStack align="space-between" blockAlign="center">
-          <Text variant="headingLg" as="h1">Performance Analytics</Text>
-          <Select
-            label="Date range"
-            labelInline
-            options={[
-              { label: "Last 7 days", value: "7" },
-              { label: "Last 30 days", value: "30" },
-            ]}
-            value={String(data.days)}
-            onChange={handleDaysChange}
-          />
+      <BlockStack gap="800">
+
+        {/* Clean Header & Controls */}
+        <InlineStack align="space-between" blockAlign="end">
+          <BlockStack gap="100">
+            <Text variant="headingXl" as="h1" fontWeight="regular">Good {timeOfDay}, here's how Lumi is performing</Text>
+            <Text variant="bodyMd" tone="subdued" as="p">{today}</Text>
+          </BlockStack>
+          <InlineStack gap="300" blockAlign="center">
+            <div style={{ width: '200px' }}>
+              <Select
+                label="Date range"
+                labelHidden
+                options={[
+                  { label: "Last 7 days", value: "7" },
+                  { label: "Last 30 days", value: "30" },
+                ]}
+                value={String(data.days)}
+                onChange={handleDaysChange}
+              />
+            </div>
+          </InlineStack>
         </InlineStack>
 
-        {/* KPIs */}
-        <Grid>
-          <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+        {/* Minimalist KPIs Grid */}
+        <InlineStack gap="400" blockAlign="stretch" wrap={true}>
+          <div style={{ flex: '1 1 220px' }}>
             <Card padding="400">
-              <BlockStack gap="200">
-                <Text as="h3" variant="headingSm" tone="subdued">Widget Opens</Text>
-                <Text as="p" variant="headingXl">{data.kpis.opens}</Text>
+              <BlockStack gap="400">
+                <InlineStack align="space-between">
+                  <Text as="h3" variant="bodyMd" tone="subdued">Widget Opens</Text>
+                  <Icon source={ViewIcon} tone="base" />
+                </InlineStack>
+                <BlockStack gap="100">
+                  <Text as="p" variant="headingXl" fontWeight="medium">{String(data.kpis.opens)}</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">Initial visits</Text>
+                </BlockStack>
               </BlockStack>
             </Card>
-          </Grid.Cell>
-          <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+          </div>
+
+          <div style={{ flex: '1 1 220px' }}>
             <Card padding="400">
-              <BlockStack gap="200">
-                <Text as="h3" variant="headingSm" tone="subdued">Conversations</Text>
-                <Text as="p" variant="headingXl">{data.kpis.conversations}</Text>
-                <Text as="p" variant="bodySm" tone="subdued">{data.kpis.engagementRate}% Engagement Rate</Text>
+              <BlockStack gap="400">
+                <Text as="h3" variant="bodyMd" tone="subdued">Conversations started</Text>
+                <BlockStack gap="100">
+                  <Text as="p" variant="headingXl" fontWeight="medium">{String(data.kpis.conversations)}</Text>
+                  <Text as="p" variant="bodySm" tone="success">{data.kpis.engagementRate}% Engagement Rate</Text>
+                </BlockStack>
               </BlockStack>
             </Card>
-          </Grid.Cell>
-          <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+          </div>
+
+          <div style={{ flex: '1 1 220px' }}>
             <Card padding="400">
-              <BlockStack gap="200">
-                <Text as="h3" variant="headingSm" tone="subdued">Total Messages</Text>
-                <Text as="p" variant="headingXl">{data.kpis.messages}</Text>
-                <Text as="p" variant="bodySm" tone="subdued">{data.kpis.images} images uploaded</Text>
+              <BlockStack gap="400">
+                <Text as="h3" variant="bodyMd" tone="subdued">Product details sent</Text>
+                <BlockStack gap="100">
+                  <Text as="p" variant="headingXl" fontWeight="medium">{String(data.kpis.productClicks)}</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">Recommendations viewed</Text>
+                </BlockStack>
               </BlockStack>
             </Card>
-          </Grid.Cell>
-          <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+          </div>
+
+          <div style={{ flex: '1 1 220px' }}>
             <Card padding="400">
-              <BlockStack gap="200">
-                <Text as="h3" variant="headingSm" tone="subdued">Product Clicks</Text>
-                <Text as="p" variant="headingXl">{data.kpis.productClicks}</Text>
-                <Text as="p" variant="bodySm" tone="subdued">{data.kpis.atcClicks} Add-to-Carts</Text>
+              <BlockStack gap="400">
+                <Text as="h3" variant="bodyMd" tone="subdued">Add to carts</Text>
+                <BlockStack gap="100">
+                  <Text as="p" variant="headingXl" fontWeight="medium">{String(data.kpis.atcClicks)}</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">Attributed actions</Text>
+                </BlockStack>
               </BlockStack>
             </Card>
-          </Grid.Cell>
-        </Grid>
+          </div>
+        </InlineStack>
 
-        {/* Conversion Funnel */}
-        <Card>
-          <BlockStack gap="400">
-            <Text variant="headingMd" as="h2">Conversion Funnel (Unique Sessions)</Text>
-            <InlineStack align="space-around" blockAlign="center" wrap={false}>
-              <BlockStack align="center" inlineAlign="center" gap="200">
-                <Text as="p" variant="headingLg">{data.funnel.opens}</Text>
-                <Text as="p" tone="subdued">Opens</Text>
-              </BlockStack>
-              <BlockStack align="center" gap="100">
-                <Text as="p" variant="bodySm" tone="success">{data.funnel.convRates.drop1}%</Text>
-                <Text as="span" tone="subdued">→</Text>
-              </BlockStack>
+        {/* Clean Conversion Funnel */}
+        <Card padding="500">
+          <BlockStack gap="500">
+            <Text variant="headingMd" as="h2">Conversion Funnel</Text>
 
-              <BlockStack align="center" inlineAlign="center" gap="200">
-                <Text as="p" variant="headingLg">{data.funnel.convos}</Text>
-                <Text as="p" tone="subdued">Convos</Text>
-              </BlockStack>
-              <BlockStack align="center" gap="100">
-                <Text as="p" variant="bodySm" tone="success">{data.funnel.convRates.drop2}%</Text>
-                <Text as="span" tone="subdued">→</Text>
-              </BlockStack>
+            {data.funnel.opens === 0 ? (
+              <Box paddingBlockStart="400" paddingBlockEnd="400">
+                <BlockStack inlineAlign="center" gap="200">
+                  <div style={{ width: '32px', height: '32px', color: '#5c6ac4' }}>
+                    <Icon source={TargetIcon} />
+                  </div>
+                  <Text as="p" tone="subdued" variant="bodyMd" alignment="center">Wait for customers to open the widget.<br />Their journey steps will appear here.</Text>
+                </BlockStack>
+              </Box>
+            ) : (
+              <div style={{ backgroundColor: '#f9fafa', borderRadius: '8px', padding: '32px 24px', border: '1px solid #ebebeb' }}>
+                <InlineStack align="space-around" blockAlign="center" wrap={false}>
+                  {/* Step 1 */}
+                  <BlockStack align="center" inlineAlign="center" gap="100">
+                    <Text variant="headingLg" as="p" fontWeight="medium">{String(data.funnel.opens)}</Text>
+                    <Text tone="subdued" variant="bodySm" as="p">Opens</Text>
+                  </BlockStack>
 
-              <BlockStack align="center" inlineAlign="center" gap="200">
-                <Text as="p" variant="headingLg">{data.funnel.clicks}</Text>
-                <Text as="p" tone="subdued">Clicks</Text>
-              </BlockStack>
-              <BlockStack align="center" gap="100">
-                <Text as="p" variant="bodySm" tone="success">{data.funnel.convRates.drop3}%</Text>
-                <Text as="span" tone="subdued">→</Text>
-              </BlockStack>
+                  {/* Drop 1 */}
+                  <BlockStack align="center" gap="0">
+                    <Text as="span" tone="success" variant="bodyXs">{data.funnel.convRates.drop1}%</Text>
+                    <div style={{ height: '2px', width: '32px', backgroundColor: '#d4d4d4', margin: '4px 0', borderRadius: '2px' }} />
+                  </BlockStack>
 
-              <BlockStack align="center" inlineAlign="center" gap="200">
-                <Text as="p" variant="headingLg">{data.funnel.atcs}</Text>
-                <Text as="p" tone="subdued">Add to Carts</Text>
-              </BlockStack>
-            </InlineStack>
+                  {/* Step 2 */}
+                  <BlockStack align="center" inlineAlign="center" gap="100">
+                    <Text variant="headingLg" as="p" fontWeight="medium">{String(data.funnel.convos)}</Text>
+                    <Text tone="subdued" variant="bodySm" as="p">Chats</Text>
+                  </BlockStack>
+
+                  {/* Drop 2 */}
+                  <BlockStack align="center" gap="0">
+                    <Text as="span" tone="success" variant="bodyXs">{data.funnel.convRates.drop2}%</Text>
+                    <div style={{ height: '2px', width: '32px', backgroundColor: '#d4d4d4', margin: '4px 0', borderRadius: '2px' }} />
+                  </BlockStack>
+
+                  {/* Step 3 */}
+                  <BlockStack align="center" inlineAlign="center" gap="100">
+                    <Text variant="headingLg" as="p" fontWeight="medium">{String(data.funnel.clicks)}</Text>
+                    <Text tone="subdued" variant="bodySm" as="p">Clicks</Text>
+                  </BlockStack>
+
+                  {/* Drop 3 */}
+                  <BlockStack align="center" gap="0">
+                    <Text as="span" tone="success" variant="bodyXs">{data.funnel.convRates.drop3}%</Text>
+                    <div style={{ height: '2px', width: '32px', backgroundColor: '#d4d4d4', margin: '4px 0', borderRadius: '2px' }} />
+                  </BlockStack>
+
+                  {/* Step 4 */}
+                  <BlockStack align="center" inlineAlign="center" gap="100">
+                    <Text variant="headingLg" as="p" fontWeight="medium">{String(data.funnel.atcs)}</Text>
+                    <Text tone="subdued" variant="bodySm" as="p">ATCs</Text>
+                  </BlockStack>
+                </InlineStack>
+              </div>
+            )}
           </BlockStack>
         </Card>
 
-        {/* Insights Row */}
-        <Grid>
-          <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 4, lg: 4, xl: 4 }}>
-            <Card>
+        {/* Clean Insights Row */}
+        <InlineStack gap="400" blockAlign="stretch" wrap={false} align="space-between">
+          <div style={{ flex: 1, minWidth: '30%' }}>
+            <Card padding="500">
               <BlockStack gap="400">
-                <Text variant="headingMd" as="h2">Top Customer Intents</Text>
+                <Text variant="headingMd" as="h2">Customer Intents</Text>
                 <Divider />
                 {data.insights.topKeywords.length === 0 ? (
-                  <Text as="p" tone="subdued">Not enough data yet.</Text>
+                  <Box paddingBlockStart="400" paddingBlockEnd="400">
+                    <BlockStack inlineAlign="center" gap="200">
+                      <div style={{ width: '28px', height: '28px', color: '#5c6ac4' }}>
+                        <Icon source={ChatIcon} />
+                      </div>
+                      <Text as="p" tone="subdued" variant="bodySm" alignment="center">No conversation trends detected yet.</Text>
+                    </BlockStack>
+                  </Box>
                 ) : (
                   <List type="number">
                     {data.insights.topKeywords.map(k => (
                       <List.Item key={k.word}>
-                        <InlineStack align="space-between">
-                          <Text as="span" fontWeight="bold">{k.word}</Text>
-                          <Badge>{`${k.freq} mentions`}</Badge>
+                        <InlineStack align="space-between" blockAlign="center">
+                          <Text as="span" fontWeight="medium" variant="bodyMd">{k.word}</Text>
+                          <Text as="span" tone="subdued" variant="bodySm">{k.freq} mentions</Text>
                         </InlineStack>
                       </List.Item>
                     ))}
@@ -273,21 +329,31 @@ export default function Dashboard() {
                 )}
               </BlockStack>
             </Card>
-          </Grid.Cell>
-          <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 4, lg: 4, xl: 4 }}>
-            <Card>
+          </div>
+
+          <div style={{ flex: 1, minWidth: '30%' }}>
+            <Card padding="500">
               <BlockStack gap="400">
-                <Text variant="headingMd" as="h2">Top Clicked Products</Text>
+                <Text variant="headingMd" as="h2">Most Clicked</Text>
                 <Divider />
                 {data.insights.topClicked.length === 0 ? (
-                  <Text as="p" tone="subdued">No product clicks yet.</Text>
+                  <Box paddingBlockStart="400" paddingBlockEnd="400">
+                    <BlockStack inlineAlign="center" gap="200">
+                      <div style={{ width: '28px', height: '28px', color: '#5c6ac4' }}>
+                        <Icon source={ProductIcon} />
+                      </div>
+                      <Text as="p" tone="subdued" variant="bodySm" alignment="center">No products clicked yet.</Text>
+                    </BlockStack>
+                  </Box>
                 ) : (
                   <List type="bullet">
                     {data.insights.topClicked.map(p => (
                       <List.Item key={p.handle}>
-                        <InlineStack align="space-between">
-                          <Text as="span">{p.title}</Text>
-                          <Badge tone="info">{`${p.count} clicks`}</Badge>
+                        <InlineStack align="space-between" blockAlign="center">
+                          <div style={{ maxWidth: '60%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <Text as="span" variant="bodyMd">{p.title}</Text>
+                          </div>
+                          <Text as="span" tone="subdued" variant="bodySm">{p.count} clicks</Text>
                         </InlineStack>
                       </List.Item>
                     ))}
@@ -295,21 +361,31 @@ export default function Dashboard() {
                 )}
               </BlockStack>
             </Card>
-          </Grid.Cell>
-          <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 4, lg: 4, xl: 4 }}>
-            <Card>
+          </div>
+
+          <div style={{ flex: 1, minWidth: '30%' }}>
+            <Card padding="500">
               <BlockStack gap="400">
-                <Text variant="headingMd" as="h2">Top Add-to-Carts</Text>
+                <Text variant="headingMd" as="h2">Top Conversions</Text>
                 <Divider />
                 {data.insights.topAtc.length === 0 ? (
-                  <Text as="p" tone="subdued">No add-to-carts yet.</Text>
+                  <Box paddingBlockStart="400" paddingBlockEnd="400">
+                    <BlockStack inlineAlign="center" gap="200">
+                      <div style={{ width: '28px', height: '28px', color: '#5c6ac4' }}>
+                        <Icon source={CartIcon} />
+                      </div>
+                      <Text as="p" tone="subdued" variant="bodySm" alignment="center">No cart additions yet.</Text>
+                    </BlockStack>
+                  </Box>
                 ) : (
                   <List type="bullet">
                     {data.insights.topAtc.map(p => (
                       <List.Item key={p.title}>
-                        <InlineStack align="space-between">
-                          <Text as="span">{p.title}</Text>
-                          <Badge tone="success">{`${p.count} ATC`}</Badge>
+                        <InlineStack align="space-between" blockAlign="center">
+                          <div style={{ maxWidth: '60%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <Text as="span" variant="bodyMd">{p.title}</Text>
+                          </div>
+                          <Text as="span" tone="subdued" variant="bodySm">{p.count} added</Text>
                         </InlineStack>
                       </List.Item>
                     ))}
@@ -317,35 +393,56 @@ export default function Dashboard() {
                 )}
               </BlockStack>
             </Card>
-          </Grid.Cell>
-        </Grid>
+          </div>
+        </InlineStack>
 
-        {/* Catalog Health */}
-        <Card>
+        {/* Minimalist Catalog Health */}
+        <Card padding="500">
           <BlockStack gap="400">
             <InlineStack align="space-between" blockAlign="center">
-              <Text variant="headingMd" as="h2">Catalog Health</Text>
+              <BlockStack gap="100">
+                <Text variant="headingMd" as="h2">Product Catalog Sync</Text>
+                <Text variant="bodySm" tone="subdued" as="p">Keep your products up to date so the AI has the latest inventory knowledge.</Text>
+              </BlockStack>
               <form action="/app/catalog" method="POST">
-                <Button submit loading={isSyncing} variant="primary">Sync now</Button>
+                <Button submit loading={isSyncing} variant="secondary">Sync manually</Button>
               </form>
             </InlineStack>
-            <Divider />
-            <InlineStack gap="800">
+
+            <div style={{ height: '32px' }} /> {/* Spacing */}
+
+            <InlineStack gap="600" blockAlign="end">
               <BlockStack gap="100">
-                <Text as="h3" variant="headingSm" tone="subdued">Synced Products</Text>
-                <Text as="p" variant="headingXl">{data.catalog.productCount}</Text>
-              </BlockStack>
-              <BlockStack gap="100">
-                <Text as="h3" variant="headingSm" tone="subdued">Last Sync Status</Text>
-                <Badge tone={data.catalog.status === "SUCCESS" ? "success" : data.catalog.status === "FAILED" ? "critical" : "info"}>
-                  {data.catalog.status}
-                </Badge>
-                {data.catalog.lastSyncedAt && (
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {new Date(data.catalog.lastSyncedAt).toLocaleString()}
+                <Text as="h3" variant="bodySm" tone="subdued">Status</Text>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '8px', height: '8px', borderRadius: '50%',
+                    backgroundColor: data.catalog.status === 'SUCCESS' ? '#10b981' : data.catalog.status === 'FAILED' ? '#ef4444' : '#eab308'
+                  }} />
+                  <Text as="span" variant="bodyMd" fontWeight="medium">
+                    {data.catalog.status === "NEVER_SYNCED" ? "Awaiting initial sync" : data.catalog.status === "SUCCESS" ? 'Fully synced' : 'Failed'}
                   </Text>
-                )}
+                </div>
               </BlockStack>
+
+              <BlockStack gap="100">
+                <Text as="h3" variant="bodySm" tone="subdued">Available products</Text>
+                <Text as="p" variant="bodyMd" fontWeight="medium">{String(data.catalog.productCount)}</Text>
+              </BlockStack>
+
+              <BlockStack gap="100">
+                <Text as="h3" variant="bodySm" tone="subdued">Last operation</Text>
+                <Text as="p" variant="bodyMd">
+                  {data.catalog.lastSyncedAt ? new Date(data.catalog.lastSyncedAt).toLocaleString() : 'N/A'}
+                </Text>
+              </BlockStack>
+
+              {data.catalog.lastSyncError && (
+                <BlockStack gap="100">
+                  <Text as="h3" variant="bodySm" tone="subdued">Diagnostic</Text>
+                  <Text as="p" variant="bodyMd" tone="critical">{data.catalog.lastSyncError}</Text>
+                </BlockStack>
+              )}
             </InlineStack>
           </BlockStack>
         </Card>
